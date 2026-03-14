@@ -9,9 +9,10 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# ────────────────────────────────────────────────
+# تحميل المتغيرات من .env
 load_dotenv()
 
-# ────────────────────────────────────────────────
 # المفاتيح (من .env)
 OPENAI_KEY    = os.getenv("OPENAI_API_KEY")
 GROK_KEY      = os.getenv("GROK_API_KEY")
@@ -19,8 +20,8 @@ GEMINI_KEY    = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY")
 CLAUDE_KEY    = os.getenv("CLAUDE_API_KEY")
 
-# إعدادات الإيميل (ضعها في Secrets في Streamlit)
-EMAIL_ADDRESS = "alzoubio2010@gmail.com"
+# إعدادات الإيميل (ضعها في Secrets في Streamlit أو في .env)
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "alzoubio2010@gmail.com")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # ← حط App Password من جوجل هنا
 
 # ────────────────────────────────────────────────
@@ -32,6 +33,9 @@ if "logged_in" not in st.session_state:
 
 if "سجل" not in st.session_state:
     st.session_state.سجل = []
+
+if "suggestions" not in st.session_state:
+    st.session_state.suggestions = []
 
 # ────────────────────────────────────────────────
 # صفحة الخصوصية (إجبارية أول مرة)
@@ -55,7 +59,7 @@ if not st.session_state.seen_privacy:
 if not st.session_state.logged_in:
     st.title("تسجيل الدخول")
     st.markdown("سجل دخول عشان تحصل على تجربة مخصصة (اختياري تمامًا)")
-    
+
     col1, col2 = st.columns([3, 1])
     with col1:
         username = st.text_input("اسم المستخدم أو الإيميل")
@@ -78,7 +82,6 @@ if not st.session_state.logged_in:
 # ────────────────────────────────────────────────
 # الواجهة الرئيسية بعد الدخول
 st.title(f"مرحبا {st.session_state.username} في Every Thing In Thing AI")
-
 st.markdown("### Every Thing In Thing AI - تطبيق للوظائف والجامعة والمدرسة")
 st.markdown("Every Thing In Thing AI هو أفضل تطبيق للمساعدة في الوظائف والدراسة في الأردن")
 
@@ -160,14 +163,16 @@ def send_to_all(query):
             client = OpenAI(api_key=OPENAI_KEY)
             r = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":query}])
             answers.append(r.choices[0].message.content.strip())
-        except: pass
+        except Exception:
+            pass
 
     if GROK_KEY:
         try:
             r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":query}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
             r.raise_for_status()
             answers.append(r.json()["choices"][0]["message"]["content"].strip())
-        except: pass
+        except Exception:
+            pass
 
     if GEMINI_KEY:
         try:
@@ -175,21 +180,24 @@ def send_to_all(query):
             model = genai.GenerativeModel("gemini-1.5-flash")
             r = model.generate_content(system + "\n" + query)
             answers.append(r.text.strip())
-        except: pass
+        except Exception:
+            pass
 
     if DEEPSEEK_KEY:
         try:
             client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
             r = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"system","content":system},{"role":"user","content":query}])
             answers.append(r.choices[0].message.content.strip())
-        except: pass
+        except Exception:
+            pass
 
     if CLAUDE_KEY:
         try:
             client = Anthropic(api_key=CLAUDE_KEY)
             msg = client.messages.create(model="claude-3-haiku-20240307", max_tokens=1024, system=system, messages=[{"role":"user","content":query}])
             answers.append(msg.content[0].text.strip())
-        except: pass
+        except Exception:
+            pass
 
     return answers
 
@@ -210,12 +218,12 @@ def merge_answers(answers):
         r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":prompt}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
-    except:
+    except Exception:
         return "\n\n".join(answers)
 
 # ────────────────────────────────────────────────
-# الواجهة الرئيسية
-tab1, tab2, tab3, tab4 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل"])
+# التبويبات (الآن أضفت تبويب "اقتراحات" بحيث زرّ الاقتراحات صار تبويب عادي)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل", "اقتراحات"])
 
 with tab1:
     sector = st.selectbox("القطاع", list(DATA["موظف"].keys()))
@@ -266,33 +274,56 @@ with tab4:
     else:
         st.info("السجل فارغ حاليًا")
 
-# ────────────────────────────────────────────────
-# صندوق الاقتراحات في السايدبار
-with st.sidebar:
+with tab5:
     st.header("اقتراحاتك تهمنا")
     st.markdown("اكتب أي اقتراح أو تعليق – يوصل مباشرة للمطور")
-    suggestion = st.text_area("اكتب هنا...", height=120)
-    if st.button("إرسال الاقتراح"):
-        if suggestion.strip():
-            try:
-                msg = MIMEMultipart()
-                msg['From'] = EMAIL_ADDRESS
-                msg['To'] = "alzoubio2010@gmail.com"
-                msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
+    suggestion = st.text_area("اكتب هنا...", height=160, key="suggestion_area")
 
-                body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion}"
-                msg.attach(MIMEText(body, 'plain'))
+    col_a, col_b = st.columns([3, 1])
+    with col_b:
+        if st.button("إرسال الاقتراح", key="send_suggestion"):
+            if suggestion.strip():
+                # حفظ محلي
+                st.session_state.suggestions.append({
+                    "from": st.session_state.username,
+                    "text": suggestion.strip()
+                })
 
-                server = smtplib.SMTP('smtp.gmail.com', 587)
-                server.starttls()
-                server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                server.send_message(msg)
-                server.quit()
+                # إرسال إيميل
+                try:
+                    msg = MIMEMultipart()
+                    msg['From'] = EMAIL_ADDRESS
+                    msg['To'] = EMAIL_ADDRESS
+                    msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
 
-                st.success("تم إرسال اقتراحك بنجاح! شكرًا")
-            except Exception as e:
-                st.error(f"حصل خطأ أثناء الإرسال: {str(e)}")
-        else:
-            st.warning("اكتب اقتراحك أولاً")
+                    body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion.strip()}"
+                    msg.attach(MIMEText(body, 'plain'))
 
+                    server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+                    server.starttls()
+                    if not EMAIL_PASSWORD:
+                        raise ValueError("لم يتم توفير كلمة سر الإيميل. ضع EMAIL_PASSWORD في المتغيرات البيئية (App Password).")
+                    server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                    server.send_message(msg)
+                    server.quit()
+
+                    st.success("تم إرسال اقتراحك بنجاح! شكرًا")
+                    # تنظيف الحقل بعد الإرسال
+                    st.session_state.suggestion_area = ""
+                except Exception as e:
+                    st.error(f"حصل خطأ أثناء الإرسال: {str(e)}")
+            else:
+                st.warning("اكتب اقتراحك أولاً")
+
+    # عرض الاقتراحات المحفوظة محليًا (للعرض فقط، لا تُنشر)
+    if st.session_state.suggestions:
+        st.markdown("---")
+        st.subheader("اقتراحات مرسلة محليًا (عرض مؤقت)")
+        for i, s in enumerate(reversed(st.session_state.suggestions), 1):
+            st.write(f"{i}. من: {s['from']}")
+            st.write(s['text'])
+            st.write("---")
+
+# ────────────────────────────────────────────────
+# تذييل
 st.caption("© 2026 - Every Thing In Thing AI - نحن نحافظ على خصوصيتك")
