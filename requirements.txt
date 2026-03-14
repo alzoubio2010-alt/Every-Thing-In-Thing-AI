@@ -1,0 +1,8 @@
+streamlit
+openai
+python-dotenv
+anthropic
+requests
+google-generativeai
+groq
+deepseek-ai
