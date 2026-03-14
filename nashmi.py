@@ -3,24 +3,87 @@ import os
 from openai import OpenAI
 from anthropic import Anthropic
 import google.generativeai as genai
-import concurrent.futures
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 load_dotenv()
 
-# المفاتيح مخفية (من .env)
+# ────────────────────────────────────────────────
+# المفاتيح (من .env)
 OPENAI_KEY    = os.getenv("OPENAI_API_KEY")
 GROK_KEY      = os.getenv("GROK_API_KEY")
 GEMINI_KEY    = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY")
 CLAUDE_KEY    = os.getenv("CLAUDE_API_KEY")
 
-# حفظ السجل
+# إعدادات الإيميل (ضعها في Secrets في Streamlit)
+EMAIL_ADDRESS = "alzoubio2010@gmail.com"
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # ← حط App Password من جوجل هنا
+
+# ────────────────────────────────────────────────
+# حالة المستخدم (محلية فقط – ما بنخزن شيء على السيرفر)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.session_state.seen_privacy = False
+
 if "سجل" not in st.session_state:
     st.session_state.سجل = []
 
-# ====================== البيانات الكاملة ======================
+# ────────────────────────────────────────────────
+# صفحة الخصوصية (إجبارية أول مرة)
+if not st.session_state.seen_privacy:
+    st.title("مرحبا بك في Every Thing In Thing AI")
+    st.markdown("### نحن نحافظ على خصوصيتك 100%")
+    st.markdown("""
+    • لا نحفظ أسئلتك أو محادثاتك على خوادمنا  
+    • كل الإجابات تتم عبر نماذج AI خارجية (ChatGPT، Claude، Gemini، Grok، DeepSeek)  
+    • اقتراحاتك فقط ترسل إلى إيميل المطور بشكل آمن ومشفر  
+    • تسجيل الدخول اختياري تمامًا وما بنخزنش أي بيانات شخصية  
+    • التطبيق آمن وموثوق، وكل شيء يتم معالجته في الوقت الفعلي
+    """)
+    if st.button("أوافق وأفهم – ادخل التطبيق"):
+        st.session_state.seen_privacy = True
+        st.rerun()
+    st.stop()
+
+# ────────────────────────────────────────────────
+# تسجيل الدخول البسيط (محلي – بدون حفظ على السيرفر)
+if not st.session_state.logged_in:
+    st.title("تسجيل الدخول")
+    st.markdown("سجل دخول عشان تحصل على تجربة مخصصة (اختياري تمامًا)")
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        username = st.text_input("اسم المستخدم أو الإيميل")
+        password = st.text_input("كلمة السر", type="password")
+    with col2:
+        if st.button("دخول"):
+            if username.strip() and password.strip():
+                st.session_state.logged_in = True
+                st.session_state.username = username.strip()
+                st.success(f"مرحبا {username.strip()}!")
+                st.rerun()
+            else:
+                st.error("املأ الاسم وكلمة السر")
+        if st.button("دخول كزائر"):
+            st.session_state.logged_in = True
+            st.session_state.username = "زائر"
+            st.rerun()
+    st.stop()
+
+# ────────────────────────────────────────────────
+# الواجهة الرئيسية بعد الدخول
+st.title(f"مرحبا {st.session_state.username} في Every Thing In Thing AI")
+
+st.markdown("### Every Thing In Thing AI - تطبيق للوظائف والجامعة والمدرسة")
+st.markdown("Every Thing In Thing AI هو أفضل تطبيق للمساعدة في الوظائف والدراسة في الأردن")
+
+# ────────────────────────────────────────────────
+# الداتا الكاملة (الوظائف + الجامعات + المدارس)
 DATA = {
     "موظف": {
         "تكنولوجيا المعلومات": [
@@ -60,7 +123,7 @@ DATA = {
         "تكنولوجيا المعلومات": "علم الحاسوب • أمن سيبراني • ذكاء اصطناعي • علم البيانات • حوسبة سحابية • روبوتات • نظم معلومات حاسوبية • نظم معلومات إدارية • برمجيات تقنية • واقع افتراضي/معزز • تطوير ألعاب • بلوكشين • وسائط متعددة",
         "الأعمال والاقتصاد": "محاسبة • إدارة أعمال • تمويل ومصارف • تسويق رقمي • اقتصاد • إدارة مستشفيات • سلاسل توريد ولوجستيات • تجارة إلكترونية • إدارة فنادق وسياحة • محاسبة وقانون تجاري • موارد بشرية • مخاطر وتأمين",
         "الحقوق والسياسة": "قانون • علوم سياسية • علاقات دولية • دراسات استراتيجية وأمنية",
-        "الفنون والتصميم": "تصميم جرافيكي • تصميم داخلي • تصميم أزياء • فنون بصرية • موسيقى • دراما • رسوم متحركة",
+        "الفنون والتصميم": "تصميم جرافيكي • تصميم داخلي • تصميز أزياء • فنون بصرية • موسيقى • دراما • رسوم متحركة",
         "العلوم والزراعة": "رياضيات • فيزياء • كيمياء • أحياء • جيولوجيا • تكنولوجيا حيوية • إنتاج نباتي ووقاية • إنتاج حيواني • تغذية وتصنيع غذائي • طب بيطري",
         "الآداب واللغات والتربية": "عربية وآدابها • إنجليزية وترجمة • لغات حديثة • علم نفس • علم اجتماع • عمل اجتماعي • تاريخ وجغرافيا • تربية خاصة • معلم صف • رياض أطفال • إرشاد نفسي وتربوي • صحافة وإعلام رقمي"
     },
@@ -85,9 +148,10 @@ DATA = {
     }
 }
 
-# ====================== إرسال السؤال لكل النماذج ======================
+# ────────────────────────────────────────────────
+# إرسال السؤال لكل النماذج
 def send_to_all(query):
-    system = "أجب بدقة ووضوح، خطوة بخطوة."
+    system = "أجب بدقة ووضوح، خطوة بخطوة، بالعربية الفصحى أو العامية حسب السياق."
 
     answers = []
 
@@ -129,14 +193,15 @@ def send_to_all(query):
 
     return answers
 
-# ====================== دمج بـ Grok ======================
+# ────────────────────────────────────────────────
+# دمج الإجابات بـ Grok
 def merge_answers(answers):
     if not GROK_KEY or not answers:
         return "\n\n".join(answers) if answers else "جاري الحل..."
 
     prompt = f"""ادمج الإجابات التالية بطريقتين واضحتين:
-**الطريقة 1 (البسيطة):** إجابة قصيرة، سريعة الفهم، تركز على الأساسيات.
-**الطريقة 2 (التفصيلية):** إجابة كاملة، مرتبة بعناوين ونقاط، دقيقة 100%.
+**الطريقة 1 (البسيطة):** إجابة قصيرة، سريعة الفهم، بالعامية الأردنية.
+**الطريقة 2 (التفصيلية):** إجابة كاملة، دقيقة، مرتبة بعناوين ونقاط.
 
 الإجابات:
 {chr(10).join([f"[{i+1}] {ans}" for i, ans in enumerate(answers)])}"""
@@ -148,12 +213,8 @@ def merge_answers(answers):
     except:
         return "\n\n".join(answers)
 
-# ====================== الواجهة ======================
-st.title("Every Thing In Thing AI")
-
-st.markdown("### Every Thing In Thing AI - تطبيق للوظائف والجامعة والمدرسة")
-st.markdown("Every Thing In Thing AI هو أفضل تطبيق للمساعدة في الوظائف والدراسة في الأردن")
-
+# ────────────────────────────────────────────────
+# الواجهة الرئيسية
 tab1, tab2, tab3, tab4 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل"])
 
 with tab1:
@@ -205,4 +266,33 @@ with tab4:
     else:
         st.info("السجل فارغ حاليًا")
 
-st.caption("© 2026 - Every Thing In Thing AI")
+# ────────────────────────────────────────────────
+# صندوق الاقتراحات في السايدبار
+with st.sidebar:
+    st.header("اقتراحاتك تهمنا")
+    st.markdown("اكتب أي اقتراح أو تعليق – يوصل مباشرة للمطور")
+    suggestion = st.text_area("اكتب هنا...", height=120)
+    if st.button("إرسال الاقتراح"):
+        if suggestion.strip():
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = EMAIL_ADDRESS
+                msg['To'] = "alzoubio2010@gmail.com"
+                msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
+
+                body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion}"
+                msg.attach(MIMEText(body, 'plain'))
+
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                server.send_message(msg)
+                server.quit()
+
+                st.success("تم إرسال اقتراحك بنجاح! شكرًا")
+            except Exception as e:
+                st.error(f"حصل خطأ أثناء الإرسال: {str(e)}")
+        else:
+            st.warning("اكتب اقتراحك أولاً")
+
+st.caption("© 2026 - Every Thing In Thing AI - نحن نحافظ على خصوصيتك")
