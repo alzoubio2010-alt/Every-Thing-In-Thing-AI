@@ -9,18 +9,18 @@ import requests
 
 load_dotenv()
 
-# المفاتيح مخفية تمامًا (تجي من .env فقط)
+# المفاتيح مخفية (من .env)
 OPENAI_KEY    = os.getenv("OPENAI_API_KEY")
 GROK_KEY      = os.getenv("GROK_API_KEY")
 GEMINI_KEY    = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY")
 CLAUDE_KEY    = os.getenv("CLAUDE_API_KEY")
 
-# حفظ السجل (الهيستوري)
+# حفظ السجل
 if "سجل" not in st.session_state:
     st.session_state.سجل = []
 
-# ====================== البيانات الكاملة (مرجع داخلي) ======================
+# ====================== البيانات الكاملة ======================
 DATA = {
     "موظف": {
         "تكنولوجيا المعلومات": [
@@ -85,78 +85,74 @@ DATA = {
     }
 }
 
-# ====================== إرسال السؤال لكل النماذج (مخفي تمامًا) ======================
+# ====================== إرسال السؤال لكل النماذج ======================
 def send_to_all(query):
     system = "أجب بدقة ووضوح، خطوة بخطوة."
 
     answers = []
 
-    # ChatGPT (OpenAI)
-    if openai_key:
+    if OPENAI_KEY:
         try:
-            client = OpenAI(api_key=openai_key)
+            client = OpenAI(api_key=OPENAI_KEY)
             r = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":query}])
             answers.append(r.choices[0].message.content.strip())
         except: pass
 
-    # Grok (xAI)
-    if grok_key:
+    if GROK_KEY:
         try:
-            r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":query}]}, headers={"Authorization": f"Bearer {grok_key}"})
+            r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":query}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
             r.raise_for_status()
             answers.append(r.json()["choices"][0]["message"]["content"].strip())
         except: pass
 
-    # Gemini
-    if gemini_key:
+    if GEMINI_KEY:
         try:
-            genai.configure(api_key=gemini_key)
+            genai.configure(api_key=GEMINI_KEY)
             model = genai.GenerativeModel("gemini-1.5-flash")
             r = model.generate_content(system + "\n" + query)
             answers.append(r.text.strip())
         except: pass
 
-    # DeepSeek
-    if deepseek_key:
+    if DEEPSEEK_KEY:
         try:
-            client = OpenAI(api_key=deepseek_key, base_url="https://api.deepseek.com")
+            client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
             r = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"system","content":system},{"role":"user","content":query}])
             answers.append(r.choices[0].message.content.strip())
         except: pass
 
-    # Claude
-    if claude_key:
+    if CLAUDE_KEY:
         try:
-            client = Anthropic(api_key=claude_key)
+            client = Anthropic(api_key=CLAUDE_KEY)
             msg = client.messages.create(model="claude-3-haiku-20240307", max_tokens=1024, system=system, messages=[{"role":"user","content":query}])
             answers.append(msg.content[0].text.strip())
         except: pass
 
     return answers
 
-# ====================== دمج الإجابات بـ Grok (مخفي) ======================
+# ====================== دمج بـ Grok ======================
 def merge_answers(answers):
-    if not grok_key or not answers:
+    if not GROK_KEY or not answers:
         return "\n\n".join(answers) if answers else "جاري الحل..."
 
     prompt = f"""ادمج الإجابات التالية بطريقتين واضحتين:
-**الطريقة 1 (البسيطة والسهلة):** إجابة قصيرة، سريعة الفهم، تركز على الأساسيات فقط، بالعامية الأردنية، صحيحة 100%.
-**الطريقة 2 (التفصيلية):** إجابة كاملة، دقيقة 100%، مرتبة بعناوين فرعية ونقاط، تشمل كل التفاصيل المهمة.
+**الطريقة 1 (البسيطة):** إجابة قصيرة، سريعة الفهم، تركز على الأساسيات.
+**الطريقة 2 (التفصيلية):** إجابة كاملة، مرتبة بعناوين ونقاط، دقيقة 100%.
 
 الإجابات:
 {chr(10).join([f"[{i+1}] {ans}" for i, ans in enumerate(answers)])}"""
 
     try:
-        r = requests.post("https://api.x.ai/v1/chat/completions", 
-                          json={"model":"grok-beta","messages":[{"role":"user","content":prompt}]},
-                          headers={"Authorization": f"Bearer {grok_key}"})
+        r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":prompt}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
     except:
-        return "\n\n".join(answers) + "\n\n(الإجابات الخام)"
+        return "\n\n".join(answers)
 
-# ====================== الواجهة النظيفة (لا أي تلميح للمستخدم) ======================
-st.title("NASHMI")
+# ====================== الواجهة ======================
+st.title("Every Thing In Thing AI")
+
+st.markdown("### Every Thing In Thing AI - تطبيق للوظائف والجامعة والمدرسة")
+st.markdown("Every Thing In Thing AI هو أفضل تطبيق للمساعدة في الوظائف والدراسة في الأردن")
 
 tab1, tab2, tab3, tab4 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل"])
 
@@ -209,4 +205,4 @@ with tab4:
     else:
         st.info("السجل فارغ حاليًا")
 
-st.caption("© 2026")
+st.caption("© 2026 - Every Thing In Thing AI")
