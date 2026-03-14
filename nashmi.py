@@ -11,107 +11,119 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date
 
 # ────────────────────────────────────────────────
-# تحميل المتغيرات من .env
+# تحميل المتغيرات
 load_dotenv()
 
-OPENAI_KEY    = os.getenv("OPENAI_API_KEY")
-GROK_KEY      = os.getenv("GROK_API_KEY")
-GEMINI_KEY    = os.getenv("GEMINI_API_KEY")
-DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY")
-CLAUDE_KEY    = os.getenv("CLAUDE_API_KEY")
+OPENAI_KEY=os.getenv("OPENAI_API_KEY")
+GROK_KEY=os.getenv("GROK_API_KEY")
+GEMINI_KEY=os.getenv("GEMINI_API_KEY")
+DEEPSEEK_KEY=os.getenv("DEEPSEEK_API_KEY")
+CLAUDE_KEY=os.getenv("CLAUDE_API_KEY")
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "alzoubio2010@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_ADDRESS=os.getenv("EMAIL_ADDRESS","alzoubio2010@gmail.com")
+EMAIL_PASSWORD=os.getenv("EMAIL_PASSWORD")
 
 # ────────────────────────────────────────────────
-# حالة المستخدم
+# بيانات الوظائف والجامعة والمدرسة
+
+DATA={
+"موظف":{
+"تكنولوجيا المعلومات":[
+"مطور برامج",
+"مطور تطبيقات موبايل",
+"أخصائي أمن سيبراني",
+"مصمم UI/UX"
+],
+"الهندسة":[
+"مهندس مدني",
+"مهندس معماري",
+"مهندس كهرباء",
+"مهندس ميكانيك"
+],
+"التعليم":[
+"معلم مدرسة",
+"أستاذ جامعي"
+]
+},
+
+"جامعة":{
+"كليات الهندسة":"مدنية • معمارية • ميكانيكية • كهربائية • برمجيات • ميكاترونكس",
+"تكنولوجيا المعلومات":"علم الحاسوب • ذكاء اصطناعي • أمن سيبراني • علم البيانات",
+"الأعمال":"محاسبة • إدارة أعمال • تسويق • اقتصاد",
+"الطب":"طب بشري • طب اسنان • صيدلة • تمريض"
+},
+
+"مدرسة":{
+"الأساسية الدنيا":{
+"صف1":"عربي • رياضيات • علوم • انجليزي",
+"صف2":"عربي • رياضيات • علوم • انجليزي",
+"صف3":"عربي • رياضيات • علوم • انجليزي"
+},
+"الأساسية العليا":"عربي • رياضيات • علوم • انجليزي • اجتماعيات",
+"الإعدادية":{
+"صف7":"رياضيات • علوم • عربي • انجليزي",
+"صف8":"رياضيات • علوم • عربي • انجليزي",
+"صف9":"فيزياء • كيمياء • احياء • رياضيات"
+},
+"الثانوية":{
+"صف10":"رياضيات • فيزياء • كيمياء • عربي",
+"صف11 علمي":"رياضيات • فيزياء • كيمياء • احياء",
+"صف11 أدبي":"تاريخ • جغرافيا • فلسفة",
+"صف12 علمي":"رياضيات • فيزياء • كيمياء",
+"صف12 أدبي":"تاريخ • جغرافيا"
+}
+}
+}
+
+# ────────────────────────────────────────────────
+# حالات التطبيق
+
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = None
-    st.session_state.seen_privacy = False
+    st.session_state.logged_in=False
+    st.session_state.username=None
 
 if "سجل" not in st.session_state:
-    st.session_state.سجل = []
-
-if "suggestions" not in st.session_state:
-    st.session_state.suggestions = []
-
-if "favorites" not in st.session_state:
-    st.session_state.favorites = []
+    st.session_state.سجل=[]
 
 # ────────────────────────────────────────────────
-# صفحة الخصوصية
-if not st.session_state.seen_privacy:
+# تسجيل الدخول
 
-    st.title("مرحبا بك في Every Thing In Thing AI")
+if not st.session_state.logged_in:
 
-    st.markdown("### نحن نحافظ على خصوصيتك 100%")
+    st.title("تسجيل الدخول")
 
-    st.markdown("""
-• لا نحفظ أسئلتك أو محادثاتك على خوادمنا
-• كل الإجابات تتم عبر نماذج AI خارجية
-• اقتراحاتك فقط ترسل إلى المطور
-• تسجيل الدخول اختياري
-""")
+    user=st.text_input("اسم المستخدم")
+    pwd=st.text_input("كلمة السر",type="password")
 
-    if st.button("أوافق وأفهم – ادخل التطبيق"):
-        st.session_state.seen_privacy = True
+    if st.button("دخول"):
+
+        if user and pwd:
+
+            st.session_state.logged_in=True
+            st.session_state.username=user
+            st.rerun()
+
+    if st.button("الدخول كزائر"):
+
+        st.session_state.logged_in=True
+        st.session_state.username="زائر"
         st.rerun()
 
     st.stop()
 
 # ────────────────────────────────────────────────
-# تسجيل دخول بسيط
-if not st.session_state.logged_in:
+# ارسال السؤال للنماذج
 
-    st.title("تسجيل الدخول")
+def send_to_models(query):
 
-    col1,col2 = st.columns([3,1])
-
-    with col1:
-        username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة السر",type="password")
-
-    with col2:
-
-        if st.button("دخول"):
-
-            if username and password:
-
-                st.session_state.logged_in=True
-                st.session_state.username=username
-                st.rerun()
-
-        if st.button("دخول كزائر"):
-
-            st.session_state.logged_in=True
-            st.session_state.username="زائر"
-            st.rerun()
-
-    st.stop()
-
-# ────────────────────────────────────────────────
-# واجهة التطبيق
-
-st.title(f"مرحبا {st.session_state.username} في Every Thing In Thing AI")
-
-st.markdown("### تطبيق شامل للدراسة والعمل والجامعة")
-
-# ────────────────────────────────────────────────
-# ارسال السؤال لكل النماذج
-
-def send_to_all_models(query):
-
-    answers = {}
-
-    system="اشرح الحل خطوة خطوة وبوضوح"
+    answers={}
 
     if OPENAI_KEY:
         try:
             client=OpenAI(api_key=OPENAI_KEY)
             r=client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role":"system","content":system},{"role":"user","content":query}]
+            model="gpt-4o-mini",
+            messages=[{"role":"user","content":query}]
             )
             answers["OpenAI"]=r.choices[0].message.content
         except:
@@ -120,9 +132,9 @@ def send_to_all_models(query):
     if GROK_KEY:
         try:
             r=requests.post(
-                "https://api.x.ai/v1/chat/completions",
-                headers={"Authorization":f"Bearer {GROK_KEY}"},
-                json={"model":"grok-beta","messages":[{"role":"user","content":query}]}
+            "https://api.x.ai/v1/chat/completions",
+            headers={"Authorization":f"Bearer {GROK_KEY}"},
+            json={"model":"grok-beta","messages":[{"role":"user","content":query}]}
             )
             answers["Grok"]=r.json()["choices"][0]["message"]["content"]
         except:
@@ -141,8 +153,8 @@ def send_to_all_models(query):
         try:
             client=OpenAI(api_key=DEEPSEEK_KEY,base_url="https://api.deepseek.com")
             r=client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role":"user","content":query}]
+            model="deepseek-chat",
+            messages=[{"role":"user","content":query}]
             )
             answers["DeepSeek"]=r.choices[0].message.content
         except:
@@ -152,9 +164,9 @@ def send_to_all_models(query):
         try:
             client=Anthropic(api_key=CLAUDE_KEY)
             msg=client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=1000,
-                messages=[{"role":"user","content":query}]
+            model="claude-3-haiku-20240307",
+            max_tokens=1000,
+            messages=[{"role":"user","content":query}]
             )
             answers["Claude"]=msg.content[0].text
         except:
@@ -163,220 +175,194 @@ def send_to_all_models(query):
     return answers
 
 # ────────────────────────────────────────────────
-# دمج الإجابات
+# واجهة التطبيق
 
-def merge_with_model(text,model_name):
+st.title(f"مرحبا {st.session_state.username} في Every Thing In Thing AI")
 
-    prompt=f"""
-ادمج هذه الإجابات في جواب واحد واضح ومنظم:
-{text}
-"""
+# التبويبات
 
-    try:
-
-        r=requests.post(
-            "https://api.x.ai/v1/chat/completions",
-            headers={"Authorization":f"Bearer {GROK_KEY}"},
-            json={"model":"grok-beta","messages":[{"role":"user","content":prompt}]}
-        )
-
-        return r.json()["choices"][0]["message"]["content"]
-
-    except:
-
-        return text
-
-# ────────────────────────────────────────────────
-# التبويبات الرئيسية
-
-main_tab1,main_tab2,main_tab3,main_tab4,main_tab5,main_tab6,main_tab7,main_tab8 = st.tabs([
+tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs([
 "المساعد الذكي",
-"ميزات الطلاب",
+"الوظائف",
 "الجامعة",
+"المدرسة",
+"ميزات الطلاب",
 "الموظفين",
 "الأدوات",
-"أفكار الدراسة",
 "السجل",
-"اقتراحات"
+"الاقتراحات"
 ])
 
 # ────────────────────────────────────────────────
 # المساعد الذكي
 
-with main_tab1:
+with tab1:
 
     st.header("مساعد الواجبات")
 
-    question=st.text_area("اكتب السؤال")
+    question=st.text_area("اكتب السؤال او المشكلة")
 
-    uploaded=st.file_uploader("او ارفع صورة السؤال")
+    st.write("رفع صورة السؤال")
+    image=st.file_uploader("اختر صورة")
+
+    st.write("التقاط صورة بالكاميرا")
+    camera=st.camera_input("التقط صورة للسؤال")
 
     if st.button("حل السؤال"):
 
-        answers=send_to_all_models(question)
-
-        merged_results={}
+        answers=send_to_models(question)
 
         for name,ans in answers.items():
 
-            merged_results[name]=merge_with_model(ans,name)
+            with st.expander(name):
+                st.write(ans)
 
-        st.subheader("اختر افضل دمج")
+# ────────────────────────────────────────────────
+# الوظائف
 
-        for name,ans in merged_results.items():
+with tab2:
+
+    sector=st.selectbox("القطاع",list(DATA["موظف"].keys()))
+
+    job=st.selectbox("الوظيفة",DATA["موظف"][sector])
+
+    details=st.text_area("اكتب المشكلة او السؤال")
+
+    if st.button("حل المشكلة"):
+
+        q=f"مشكلة في وظيفة {job} في قطاع {sector}: {details}"
+
+        answers=send_to_models(q)
+
+        for name,ans in answers.items():
 
             with st.expander(name):
+                st.write(ans)
 
+# ────────────────────────────────────────────────
+# الجامعة
+
+with tab3:
+
+    college=st.selectbox("الكلية",list(DATA["جامعة"].keys()))
+
+    st.write("التخصصات:")
+
+    st.write(DATA["جامعة"][college])
+
+    spec=st.text_input("السؤال عن التخصص")
+
+    if st.button("اسأل"):
+
+        q=f"تخصص جامعي {spec} في كلية {college}"
+
+        answers=send_to_models(q)
+
+        for name,ans in answers.items():
+
+            with st.expander(name):
+                st.write(ans)
+
+# ────────────────────────────────────────────────
+# المدرسة
+
+with tab4:
+
+    stage=st.selectbox("المرحلة",list(DATA["مدرسة"].keys()))
+
+    if isinstance(DATA["مدرسة"][stage],dict):
+
+        grade=st.selectbox("الصف",list(DATA["مدرسة"][stage].keys()))
+
+        st.write("المواد:")
+        st.write(DATA["مدرسة"][stage][grade])
+
+        subject=st.text_input("المادة او السؤال")
+
+        query=f"صف {grade} مادة {subject}"
+
+    else:
+
+        st.write(DATA["مدرسة"][stage])
+
+        subject=st.text_input("المادة او السؤال")
+
+        query=f"مرحلة {stage} مادة {subject}"
+
+    if st.button("شرح"):
+
+        answers=send_to_models(query)
+
+        for name,ans in answers.items():
+
+            with st.expander(name):
                 st.write(ans)
 
 # ────────────────────────────────────────────────
 # ميزات الطلاب
 
-with main_tab2:
+with tab5:
 
-    st.header("خطة دراسة تلقائية")
+    st.header("خطة دراسة")
 
     grade=st.text_input("الصف")
-
     subjects=st.text_input("المواد")
+    exam=st.date_input("موعد الامتحان",value=date.today())
 
-    exam_date=st.date_input("موعد الامتحان",value=date.today())
+    if st.button("انشاء الخطة"):
 
-    if st.button("انشاء خطة دراسة"):
+        q=f"اصنع جدول دراسة للصف {grade} للمواد {subjects} حتى تاريخ {exam}"
 
-        q=f"اصنع جدول دراسة للصف {grade} للمواد {subjects} حتى تاريخ {exam_date}"
-
-        answers=send_to_all_models(q)
+        answers=send_to_models(q)
 
         st.write(list(answers.values())[0])
 
-
-    st.header("مولد اسئلة امتحان")
+    st.header("مولد اسئلة")
 
     subject=st.text_input("المادة")
 
-    if st.button("توليد اسئلة"):
+    if st.button("توليد"):
 
-        q=f"انشئ اسئلة اختبار للمادة {subject} تشمل اختيار متعدد وصح وخطأ ومقالية"
+        q=f"انشئ اسئلة اختبار للمادة {subject}"
 
-        answers=send_to_all_models(q)
-
-        st.write(list(answers.values())[0])
-
-# ────────────────────────────────────────────────
-# الجامعة
-
-with main_tab3:
-
-    st.header("اختيار التخصص المناسب")
-
-    avg=st.number_input("معدلك")
-
-    interests=st.text_input("اهتماماتك")
-
-    if st.button("اقترح تخصص"):
-
-        q=f"معدل الطالب {avg} واهتماماته {interests} اقترح تخصص جامعي"
-
-        answers=send_to_all_models(q)
-
-        st.write(list(answers.values())[0])
-
-
-    st.header("حساب المعدل الجامعي")
-
-    grades=st.text_area("ادخل العلامات")
-
-    if st.button("احسب المعدل"):
-
-        q=f"احسب المعدل لهذه العلامات {grades}"
-
-        answers=send_to_all_models(q)
+        answers=send_to_models(q)
 
         st.write(list(answers.values())[0])
 
 # ────────────────────────────────────────────────
 # الموظفين
 
-with main_tab4:
+with tab6:
 
-    st.header("مولد سيرة ذاتية CV")
-
-    info=st.text_area("اكتب معلوماتك")
+    info=st.text_area("معلوماتك لانشاء CV")
 
     if st.button("انشاء CV"):
 
-        q=f"اصنع سيرة ذاتية احترافية من هذه المعلومات {info}"
-
-        answers=send_to_all_models(q)
-
-        st.write(list(answers.values())[0])
-
-
-    st.header("تحضير مقابلة عمل")
-
-    job=st.text_input("الوظيفة")
-
-    if st.button("اسئلة المقابلة"):
-
-        q=f"اعطني اسئلة مقابلة عمل لوظيفة {job} مع افضل الاجابات"
-
-        answers=send_to_all_models(q)
+        answers=send_to_models(f"اكتب سيرة ذاتية احترافية من هذه المعلومات {info}")
 
         st.write(list(answers.values())[0])
 
 # ────────────────────────────────────────────────
 # الادوات
 
-with main_tab5:
+with tab7:
 
-    st.header("بحث داخل التطبيق")
+    st.header("بحث")
 
-    search=st.text_input("ابحث هنا")
-
+    st.text_input("ابحث داخل التطبيق")
 
     st.header("الوضع الليلي")
 
-    dark=st.toggle("تشغيل الوضع الليلي")
+    st.toggle("تشغيل")
 
-
-    st.header("رفع صورة للسؤال")
-
-    st.file_uploader("ارفع صورة")
-
-
-    st.header("تسجيل صوتي")
+    st.header("تسجيل صوت")
 
     st.audio_input("اسأل بالصوت")
 
 # ────────────────────────────────────────────────
-# أفكار الدراسة
-
-with main_tab6:
-
-    st.header("AI يشرح مثل المعلم")
-
-    lesson=st.text_input("اكتب الدرس")
-
-    if st.button("اشرح"):
-
-        answers=send_to_all_models(f"اشرح هذا الدرس خطوة خطوة {lesson}")
-
-        st.write(list(answers.values())[0])
-
-
-    st.header("توصيات يومية للدراسة")
-
-    if st.button("اعطني نصائح اليوم"):
-
-        answers=send_to_all_models("اعطني نصائح دراسية يومية للطلاب")
-
-        st.write(list(answers.values())[0])
-
-# ────────────────────────────────────────────────
 # السجل
 
-with main_tab7:
+with tab8:
 
     st.header("السجل")
 
@@ -387,43 +373,32 @@ with main_tab7:
 # ────────────────────────────────────────────────
 # الاقتراحات
 
-with main_tab8:
-
-    st.header("اقتراحاتك")
+with tab9:
 
     suggestion=st.text_area("اكتب اقتراحك")
 
     if st.button("ارسال الاقتراح"):
 
-        if suggestion:
+        try:
 
-            try:
+            msg=MIMEMultipart()
+            msg['From']=EMAIL_ADDRESS
+            msg['To']=EMAIL_ADDRESS
+            msg['Subject']="اقتراح جديد"
 
-                msg=MIMEMultipart()
+            msg.attach(MIMEText(suggestion,'plain'))
 
-                msg['From']=EMAIL_ADDRESS
+            server=smtplib.SMTP('smtp.gmail.com',587)
+            server.starttls()
+            server.login(EMAIL_ADDRESS,EMAIL_PASSWORD)
+            server.send_message(msg)
+            server.quit()
 
-                msg['To']=EMAIL_ADDRESS
+            st.success("تم ارسال الاقتراح")
 
-                msg['Subject']=f"اقتراح من {st.session_state.username}"
+        except Exception as e:
 
-                msg.attach(MIMEText(suggestion,'plain'))
-
-                server=smtplib.SMTP('smtp.gmail.com',587)
-
-                server.starttls()
-
-                server.login(EMAIL_ADDRESS,EMAIL_PASSWORD)
-
-                server.send_message(msg)
-
-                server.quit()
-
-                st.success("تم ارسال الاقتراح")
-
-            except Exception as e:
-
-                st.error(str(e))
+            st.error(str(e))
 
 # ────────────────────────────────────────────────
 
