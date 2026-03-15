@@ -211,14 +211,17 @@ def merge_answers(answers):
         return "\n\n".join(answers)
 
 # التبويبات
-tab1, tab2, tab3, tab4 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل", "اقتراحات"])
 
 with tab1:
     st.write("صوّر أو اكتب السؤال")
-    photo = st.camera_input("صور المشكلة")
-    details = st.text_area("تفاصيل إضافية (اختياري)")
+    col_camera, col_text = st.columns([1, 3])
+    with col_camera:
+        photo = st.camera_input("📷", key="camera_job")
+    with col_text:
+        details = st.text_area("التفاصيل أو المشكلة", height=100)
     if st.button("حل المشكلة", key="btn1"):
-        if photo or details:
+        if photo or details.strip():
             with st.spinner("جاري التحليل..."):
                 image_data = None
                 if photo:
@@ -234,8 +237,11 @@ with tab1:
 with tab2:
     college = st.selectbox("الكلية", list(DATA["جامعة"].keys()))
     st.write("التخصصات:", DATA["جامعة"][college])
-    spec = st.text_input("التخصص أو السؤال")
-    photo = st.camera_input("صور الموضوع")
+    col_camera, col_text = st.columns([1, 3])
+    with col_camera:
+        photo = st.camera_input("📷", key="camera_uni")
+    with col_text:
+        spec = st.text_input("التخصص أو السؤال")
     if st.button("شرح أو إجابة", key="btn2"):
         with st.spinner("جاري الحل..."):
             image_data = None
@@ -258,7 +264,11 @@ with tab3:
     else:
         subject = st.text_input("المادة أو الموضوع")
         query = f"{stage} - {subject}"
-    photo = st.camera_input("صور الدرس")
+    col_camera, col_text = st.columns([1, 3])
+    with col_camera:
+        photo = st.camera_input("📷", key="camera_school")
+    with col_text:
+        pass
     if st.button("شرح أو حل", key="btn3"):
         with st.spinner("جاري الحل..."):
             image_data = None
@@ -280,13 +290,13 @@ with tab4:
     else:
         st.info("السجل فارغ حاليًا")
 
-# صندوق الاقتراحات في السايدبار
-with st.sidebar:
+with tab5:
     st.header("اقتراحاتك تهمنا")
-    suggestion = st.text_area("اكتب اقتراحك...")
-    photo_sug = st.camera_input("أرفق صورة")
+    st.markdown("اكتب أي اقتراح أو تعليق – يوصل مباشرة للمطور")
+    suggestion = st.text_area("اكتب هنا...", height=160)
+    uploaded_files = st.file_uploader("ارفع صور أو ملفات (يمكن رفع أكثر من صورة)", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=True)
     if st.button("إرسال الاقتراح"):
-        if suggestion.strip():
+        if suggestion.strip() or uploaded_files:
             try:
                 msg = MIMEMultipart()
                 msg['From'] = EMAIL_ADDRESS
@@ -294,9 +304,10 @@ with st.sidebar:
                 msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
                 body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion.strip()}"
                 msg.attach(MIMEText(body, 'plain'))
-                if photo_sug:
-                    img = MIMEImage(photo_sug.getvalue())
-                    msg.attach(img)
+                if uploaded_files:
+                    for file in uploaded_files:
+                        img = MIMEImage(file.getvalue())
+                        msg.attach(img)
                 server = smtplib.SMTP('smtp.gmail.com', 587)
                 server.starttls()
                 server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
@@ -305,5 +316,7 @@ with st.sidebar:
                 st.success("تم إرسال اقتراحك بنجاح!")
             except Exception as e:
                 st.error(f"خطأ: {str(e)}")
+        else:
+            st.warning("اكتب اقتراح أو ارفع ملف")
 
 st.caption("© 2026 - Every Thing In Thing AI - نحن نحافظ على خصوصيتك")
