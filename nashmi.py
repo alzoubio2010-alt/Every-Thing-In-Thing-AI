@@ -8,24 +8,23 @@ from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+import base64
+from io import BytesIO
 
-# ────────────────────────────────────────────────
-# تحميل المتغيرات من .env
 load_dotenv()
 
-# المفاتيح (من .env)
+# المفاتيح
 OPENAI_KEY    = os.getenv("OPENAI_API_KEY")
 GROK_KEY      = os.getenv("GROK_API_KEY")
 GEMINI_KEY    = os.getenv("GEMINI_API_KEY")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY")
 CLAUDE_KEY    = os.getenv("CLAUDE_API_KEY")
 
-# إعدادات الإيميل (ضعها في Secrets في Streamlit أو في .env)
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "alzoubio2010@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # ← حط App Password من جوجل هنا
+EMAIL_ADDRESS = "alzoubio2010@gmail.com"
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-# ────────────────────────────────────────────────
-# حالة المستخدم (محلية فقط – ما بنخزن شيء على السيرفر)
+# حالة المستخدم
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = None
@@ -34,59 +33,47 @@ if "logged_in" not in st.session_state:
 if "سجل" not in st.session_state:
     st.session_state.سجل = []
 
-if "suggestions" not in st.session_state:
-    st.session_state.suggestions = []
-
-# ────────────────────────────────────────────────
-# صفحة الخصوصية (إجبارية أول مرة)
+# صفحة الخصوصية
 if not st.session_state.seen_privacy:
     st.title("مرحبا بك في Every Thing In Thing AI")
     st.markdown("### نحن نحافظ على خصوصيتك 100%")
     st.markdown("""
     • لا نحفظ أسئلتك أو محادثاتك على خوادمنا  
-    • كل الإجابات تتم عبر نماذج AI خارجية (ChatGPT، Claude، Gemini، Grok، DeepSeek)  
-    • اقتراحاتك فقط ترسل إلى إيميل المطور بشكل آمن ومشفر  
-    • تسجيل الدخول اختياري تمامًا وما بنخزنش أي بيانات شخصية  
-    • التطبيق آمن وموثوق، وكل شيء يتم معالجته في الوقت الفعلي
+    • كل الإجابات تتم عبر نماذج AI خارجية  
+    • اقتراحاتك فقط ترسل إلى إيميل المطور بشكل آمن  
+    • تسجيل الدخول اختياري تمامًا
     """)
     if st.button("أوافق وأفهم – ادخل التطبيق"):
         st.session_state.seen_privacy = True
         st.rerun()
     st.stop()
 
-# ────────────────────────────────────────────────
-# تسجيل الدخول البسيط (محلي – بدون حفظ على السيرفر)
+# تسجيل الدخول
 if not st.session_state.logged_in:
     st.title("تسجيل الدخول")
-    st.markdown("سجل دخول عشان تحصل على تجربة مخصصة (اختياري تمامًا)")
-
-    col1, col2 = st.columns([3, 1])
+    username = st.text_input("اسم المستخدم أو الإيميل")
+    password = st.text_input("كلمة السر", type="password")
+    col1, col2 = st.columns(2)
     with col1:
-        username = st.text_input("اسم المستخدم أو الإيميل")
-        password = st.text_input("كلمة السر", type="password")
-    with col2:
         if st.button("دخول"):
-            if username.strip() and password.strip():
+            if username and password:
                 st.session_state.logged_in = True
-                st.session_state.username = username.strip()
-                st.success(f"مرحبا {username.strip()}!")
+                st.session_state.username = username
+                st.success(f"مرحبا {username}!")
                 st.rerun()
-            else:
-                st.error("املأ الاسم وكلمة السر")
+    with col2:
         if st.button("دخول كزائر"):
             st.session_state.logged_in = True
             st.session_state.username = "زائر"
             st.rerun()
     st.stop()
 
-# ────────────────────────────────────────────────
-# الواجهة الرئيسية بعد الدخول
+# الواجهة الرئيسية
 st.title(f"مرحبا {st.session_state.username} في Every Thing In Thing AI")
 st.markdown("### Every Thing In Thing AI - تطبيق للوظائف والجامعة والمدرسة")
 st.markdown("Every Thing In Thing AI هو أفضل تطبيق للمساعدة في الوظائف والدراسة في الأردن")
 
-# ────────────────────────────────────────────────
-# الداتا الكاملة (الوظائف + الجامعات + المدارس)
+# الداتا الكاملة
 DATA = {
     "موظف": {
         "تكنولوجيا المعلومات": [
@@ -126,7 +113,7 @@ DATA = {
         "تكنولوجيا المعلومات": "علم الحاسوب • أمن سيبراني • ذكاء اصطناعي • علم البيانات • حوسبة سحابية • روبوتات • نظم معلومات حاسوبية • نظم معلومات إدارية • برمجيات تقنية • واقع افتراضي/معزز • تطوير ألعاب • بلوكشين • وسائط متعددة",
         "الأعمال والاقتصاد": "محاسبة • إدارة أعمال • تمويل ومصارف • تسويق رقمي • اقتصاد • إدارة مستشفيات • سلاسل توريد ولوجستيات • تجارة إلكترونية • إدارة فنادق وسياحة • محاسبة وقانون تجاري • موارد بشرية • مخاطر وتأمين",
         "الحقوق والسياسة": "قانون • علوم سياسية • علاقات دولية • دراسات استراتيجية وأمنية",
-        "الفنون والتصميم": "تصميم جرافيكي • تصميم داخلي • تصميز أزياء • فنون بصرية • موسيقى • دراما • رسوم متحركة",
+        "الفنون والتصميم": "تصميم جرافيكي • تصميم داخلي • تصميم أزياء • فنون بصرية • موسيقى • دراما • رسوم متحركة",
         "العلوم والزراعة": "رياضيات • فيزياء • كيمياء • أحياء • جيولوجيا • تكنولوجيا حيوية • إنتاج نباتي ووقاية • إنتاج حيواني • تغذية وتصنيع غذائي • طب بيطري",
         "الآداب واللغات والتربية": "عربية وآدابها • إنجليزية وترجمة • لغات حديثة • علم نفس • علم اجتماع • عمل اجتماعي • تاريخ وجغرافيا • تربية خاصة • معلم صف • رياض أطفال • إرشاد نفسي وتربوي • صحافة وإعلام رقمي"
     },
@@ -151,58 +138,60 @@ DATA = {
     }
 }
 
-# ────────────────────────────────────────────────
-# إرسال السؤال لكل النماذج
-def send_to_all(query):
-    system = "أجب بدقة ووضوح، خطوة بخطوة، بالعربية الفصحى أو العامية حسب السياق."
+# دالة إرسال مع دعم الصور
+def send_to_all(query, image_data=None):
+    system = "أجب بدقة ووضوح، خطوة بخطوة."
 
     answers = []
 
     if OPENAI_KEY:
         try:
             client = OpenAI(api_key=OPENAI_KEY)
-            r = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":system},{"role":"user","content":query}])
+            messages = [{"role": "system", "content": system}]
+            user_content = [{"type": "text", "text": query}]
+            if image_data:
+                user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}})
+            messages.append({"role": "user", "content": user_content})
+            r = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
             answers.append(r.choices[0].message.content.strip())
-        except Exception:
-            pass
+        except: pass
+
+    if GEMINI_KEY:
+        try:
+            genai.configure(api_key=GEMINI_KEY)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            content = [system, query]
+            if image_data:
+                img_bytes = base64.b64decode(image_data)
+                content.append(genai.protos.Part(inline_data=genai.protos.Blob(mime_type="image/jpeg", data=img_bytes)))
+            r = model.generate_content(content)
+            answers.append(r.text.strip())
+        except: pass
 
     if GROK_KEY:
         try:
             r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":query}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
             r.raise_for_status()
             answers.append(r.json()["choices"][0]["message"]["content"].strip())
-        except Exception:
-            pass
-
-    if GEMINI_KEY:
-        try:
-            genai.configure(api_key=GEMINI_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            r = model.generate_content(system + "\n" + query)
-            answers.append(r.text.strip())
-        except Exception:
-            pass
+        except: pass
 
     if DEEPSEEK_KEY:
         try:
             client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
             r = client.chat.completions.create(model="deepseek-chat", messages=[{"role":"system","content":system},{"role":"user","content":query}])
             answers.append(r.choices[0].message.content.strip())
-        except Exception:
-            pass
+        except: pass
 
     if CLAUDE_KEY:
         try:
             client = Anthropic(api_key=CLAUDE_KEY)
             msg = client.messages.create(model="claude-3-haiku-20240307", max_tokens=1024, system=system, messages=[{"role":"user","content":query}])
             answers.append(msg.content[0].text.strip())
-        except Exception:
-            pass
+        except: pass
 
     return answers
 
-# ────────────────────────────────────────────────
-# دمج الإجابات بـ Grok
+# دمج بـ Grok
 def merge_answers(answers):
     if not GROK_KEY or not answers:
         return "\n\n".join(answers) if answers else "جاري الحل..."
@@ -218,36 +207,47 @@ def merge_answers(answers):
         r = requests.post("https://api.x.ai/v1/chat/completions", json={"model":"grok-beta","messages":[{"role":"user","content":prompt}]}, headers={"Authorization": f"Bearer {GROK_KEY}"})
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
-    except Exception:
+    except:
         return "\n\n".join(answers)
 
-# ────────────────────────────────────────────────
-# التبويبات (الآن أضفت تبويب "اقتراحات" بحيث زرّ الاقتراحات صار تبويب عادي)
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل", "اقتراحات"])
+# التبويبات
+tab1, tab2, tab3, tab4 = st.tabs(["الوظيفة", "الجامعة", "المدرسة", "السجل"])
 
 with tab1:
-    sector = st.selectbox("القطاع", list(DATA["موظف"].keys()))
-    job = st.selectbox("الوظيفة", DATA["موظف"][sector])
-    details = st.text_area("التفاصيل أو المشكلة")
+    st.write("صوّر أو اكتب السؤال")
+    photo = st.camera_input("صور المشكلة")
+    details = st.text_area("تفاصيل إضافية (اختياري)")
     if st.button("حل المشكلة", key="btn1"):
-        with st.spinner("جاري الحل..."):
-            query = f"قسم موظف - {sector} - {job}\nالتفاصيل: {details}"
-            answers = send_to_all(query)
-            final = merge_answers(answers)
-            st.session_state.سجل.append({"سؤال": query[:80] + "...", "جواب": final})
-        st.markdown(final)
+        if photo or details:
+            with st.spinner("جاري التحليل..."):
+                image_data = None
+                if photo:
+                    buffered = BytesIO()
+                    photo.getvalue().save(buffered, format="JPEG")
+                    image_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                query = details or "حلل الصورة"
+                answers = send_to_all(query, image_data)
+                final = merge_answers(answers)
+                st.session_state.سجل.append({"سؤال": query[:80] + "...", "جواب": final})
+                st.markdown(final)
 
 with tab2:
     college = st.selectbox("الكلية", list(DATA["جامعة"].keys()))
     st.write("التخصصات:", DATA["جامعة"][college])
     spec = st.text_input("التخصص أو السؤال")
+    photo = st.camera_input("صور الموضوع")
     if st.button("شرح أو إجابة", key="btn2"):
         with st.spinner("جاري الحل..."):
-            query = f"تخصص جامعي: {spec} في {college}"
-            answers = send_to_all(query)
+            image_data = None
+            if photo:
+                buffered = BytesIO()
+                photo.getvalue().save(buffered, format="JPEG")
+                image_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            query = spec or "حلل الصورة"
+            answers = send_to_all(query, image_data)
             final = merge_answers(answers)
             st.session_state.سجل.append({"سؤال": query[:80] + "...", "جواب": final})
-        st.markdown(final)
+            st.markdown(final)
 
 with tab3:
     stage = st.selectbox("المرحلة", list(DATA["مدرسة"].keys()))
@@ -258,12 +258,18 @@ with tab3:
     else:
         subject = st.text_input("المادة أو الموضوع")
         query = f"{stage} - {subject}"
+    photo = st.camera_input("صور الدرس")
     if st.button("شرح أو حل", key="btn3"):
         with st.spinner("جاري الحل..."):
-            answers = send_to_all(query)
+            image_data = None
+            if photo:
+                buffered = BytesIO()
+                photo.getvalue().save(buffered, format="JPEG")
+                image_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            answers = send_to_all(query, image_data)
             final = merge_answers(answers)
             st.session_state.سجل.append({"سؤال": query[:80] + "...", "جواب": final})
-        st.markdown(final)
+            st.markdown(final)
 
 with tab4:
     st.subheader("السجل")
@@ -274,56 +280,30 @@ with tab4:
     else:
         st.info("السجل فارغ حاليًا")
 
-with tab5:
+# صندوق الاقتراحات في السايدبار
+with st.sidebar:
     st.header("اقتراحاتك تهمنا")
-    st.markdown("اكتب أي اقتراح أو تعليق – يوصل مباشرة للمطور")
-    suggestion = st.text_area("اكتب هنا...", height=160, key="suggestion_area")
+    suggestion = st.text_area("اكتب اقتراحك...")
+    photo_sug = st.camera_input("أرفق صورة")
+    if st.button("إرسال الاقتراح"):
+        if suggestion.strip():
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = EMAIL_ADDRESS
+                msg['To'] = EMAIL_ADDRESS
+                msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
+                body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion.strip()}"
+                msg.attach(MIMEText(body, 'plain'))
+                if photo_sug:
+                    img = MIMEImage(photo_sug.getvalue())
+                    msg.attach(img)
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                server.send_message(msg)
+                server.quit()
+                st.success("تم إرسال اقتراحك بنجاح!")
+            except Exception as e:
+                st.error(f"خطأ: {str(e)}")
 
-    col_a, col_b = st.columns([3, 1])
-    with col_b:
-        if st.button("إرسال الاقتراح", key="send_suggestion"):
-            if suggestion.strip():
-                # حفظ محلي
-                st.session_state.suggestions.append({
-                    "from": st.session_state.username,
-                    "text": suggestion.strip()
-                })
-
-                # إرسال إيميل
-                try:
-                    msg = MIMEMultipart()
-                    msg['From'] = EMAIL_ADDRESS
-                    msg['To'] = EMAIL_ADDRESS
-                    msg['Subject'] = f"اقتراح جديد من {st.session_state.username}"
-
-                    body = f"المستخدم: {st.session_state.username}\n\nالاقتراح:\n{suggestion.strip()}"
-                    msg.attach(MIMEText(body, 'plain'))
-
-                    server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-                    server.starttls()
-                    if not EMAIL_PASSWORD:
-                        raise ValueError("لم يتم توفير كلمة سر الإيميل. ضع EMAIL_PASSWORD في المتغيرات البيئية (App Password).")
-                    server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                    server.send_message(msg)
-                    server.quit()
-
-                    st.success("تم إرسال اقتراحك بنجاح! شكرًا")
-                    # تنظيف الحقل بعد الإرسال
-                    st.session_state.suggestion_area = ""
-                except Exception as e:
-                    st.error(f"حصل خطأ أثناء الإرسال: {str(e)}")
-            else:
-                st.warning("اكتب اقتراحك أولاً")
-
-    # عرض الاقتراحات المحفوظة محليًا (للعرض فقط، لا تُنشر)
-    if st.session_state.suggestions:
-        st.markdown("---")
-        st.subheader("اقتراحات مرسلة محليًا (عرض مؤقت)")
-        for i, s in enumerate(reversed(st.session_state.suggestions), 1):
-            st.write(f"{i}. من: {s['from']}")
-            st.write(s['text'])
-            st.write("---")
-
-# ────────────────────────────────────────────────
-# تذييل
 st.caption("© 2026 - Every Thing In Thing AI - نحن نحافظ على خصوصيتك")
